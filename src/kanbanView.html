@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workboard</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--vscode-editor-background);color:var(--vscode-editor-foreground);font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);padding:16px;height:100vh;overflow:hidden}
+.board{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;height:100%}
+.column{display:flex;flex-direction:column;background:var(--vscode-sideBar-background);border:1px solid var(--vscode-sideBar-border);border-radius:6px;overflow:hidden;min-width:0}
+.column-header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--vscode-sideBarSectionHeader-background);border-bottom:1px solid var(--vscode-sideBar-border);font-weight:600;font-size:13px}
+.column-header .count{background:var(--vscode-badge-background);color:var(--vscode-badge-foreground);border-radius:10px;padding:1px 7px;font-size:11px}
+.column-header .add-btn{background:none;border:none;color:var(--vscode-foreground);cursor:pointer;font-size:18px;padding:0 4px;opacity:0.6}
+.column-header .add-btn:hover{opacity:1}
+.column-body{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:6px;min-height:0}
+.column-body.drag-over{background:var(--vscode-list-dropBackground)}
+.card{background:var(--vscode-editor-background);border:1px solid var(--vscode-widget-border);border-radius:5px;padding:10px;cursor:grab;transition:box-shadow .15s, transform .15s}
+.card:hover{box-shadow:0 2px 8px rgba(0,0,0,0.2)}
+.card.dragging{opacity:0.5;cursor:grabbing}
+.card .card-title{font-weight:600;font-size:13px;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .card-desc{font-size:11px;opacity:0.7;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:6px}
+.card .card-meta{font-size:10px;opacity:0.5}
+.card .card-actions{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}
+.card .card-actions button{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:1px solid var(--vscode-button-secondaryBorder,transparent);border-radius:3px;padding:2px 8px;font-size:10px;cursor:pointer}
+.card .card-actions button:hover{background:var(--vscode-button-secondaryHoverBackground)}
+.card .card-actions button.primary{background:var(--vscode-button-background);color:var(--vscode-button-foreground)}
+.card .card-actions button.primary:hover{background:var(--vscode-button-hoverBackground)}
+.card .card-actions button.danger{color:var(--vscode-errorForeground)}
+.card.running{border-color:var(--vscode-textLink-activeForeground);border-width:2px}
+.empty-state{text-align:center;padding:20px;opacity:0.4;font-size:12px}
+.empty-state .icon{font-size:28px;margin-bottom:6px}
+.toolbar{display:flex;gap:8px;margin-bottom:12px;align-items:center}
+.toolbar button{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground);border:none;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:12px}
+.toolbar button:hover{background:var(--vscode-button-secondaryHoverBackground)}
+.toolbar .stats{font-size:11px;opacity:0.6;margin-left:auto}
+.modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:100;align-items:center;justify-content:center}
+.modal-overlay.active{display:flex}
+.modal{background:var(--vscode-editor-background);border:1px solid var(--vscode-widget-border);border-radius:8px;padding:20px;width:420px;max-width:90vw}
+.modal h3{margin-bottom:12px}
+.modal label{display:block;font-size:12px;margin-bottom:4px;opacity:0.8}
+.modal input,.modal textarea{width:100%;background:var(--vscode-input-background);color:var(--vscode-input-foreground);border:1px solid var(--vscode-input-border);border-radius:4px;padding:6px 10px;font-size:13px;margin-bottom:10px;font-family:inherit}
+.modal textarea{resize:vertical;min-height:80px}
+.modal select{width:100%;background:var(--vscode-dropdown-background);color:var(--vscode-dropdown-foreground);border:1px solid var(--vscode-dropdown-border);border-radius:4px;padding:6px 10px;font-size:13px;margin-bottom:10px}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end}
+.modal-actions button{background:var(--vscode-button-background);color:var(--vscode-button-foreground);border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-size:12px}
+.modal-actions button:hover{background:var(--vscode-button-hoverBackground)}
+.modal-actions button.secondary{background:var(--vscode-button-secondaryBackground);color:var(--vscode-button-secondaryForeground)}
+.modal-actions button.secondary:hover{background:var(--vscode-button-secondaryHoverBackground)}
+.modal-actions button.danger{background:var(--vscode-inputValidation-errorBackground);color:var(--vscode-inputValidation-errorForeground)}
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <button onclick="handleCreate()">+ New Ticket</button>
+  <button onclick="handleRefresh()">Refresh</button>
+  <span class="stats" id="stats"></span>
+</div>
+
+<div class="board" id="board"></div>
+
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h3 id="modalTitle">Edit Ticket</h3>
+    <label>Title</label>
+    <input type="text" id="modalTicketTitle" placeholder="Ticket title">
+    <label>Description</label>
+    <textarea id="modalTicketDesc" placeholder="Ticket description (optional)"></textarea>
+    <label>Status</label>
+    <select id="modalTicketStatus"></select>
+    <div class="modal-actions">
+      <button class="danger" id="modalDeleteBtn" style="margin-right:auto">Delete</button>
+      <button class="secondary" onclick="closeModal()">Cancel</button>
+      <button onclick="saveModal()">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="createModal">
+  <div class="modal">
+    <h3>New Ticket</h3>
+    <label>Title</label>
+    <input type="text" id="createTitle" placeholder="Ticket title">
+    <label>Description</label>
+    <textarea id="createDesc" placeholder="Ticket description (optional)"></textarea>
+    <label>Column</label>
+    <select id="createStatus"></select>
+    <div class="modal-actions">
+      <button class="secondary" onclick="closeCreateModal()">Cancel</button>
+      <button onclick="saveCreateModal()">Create</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const COLUMNS = ['To Do', 'In Progress', 'In Review', 'Done'];
+let tickets = [];
+let cliProviders = [];
+let editTicketId = null;
+
+const vscode = acquireVsCodeApi();
+
+window.addEventListener('message', (e) => {
+  const msg = e.data;
+  if (msg.type === 'update') {
+    tickets = msg.tickets || [];
+    cliProviders = msg.cliProviders || [];
+    render();
+  }
+  if (msg.type === 'executionUpdate') {
+    const ticket = tickets.find(t => t.id === msg.ticketId);
+    if (ticket) {
+      ticket.executionStatus = msg.executionStatus;
+      render();
+    }
+  }
+});
+
+function post(type, data) {
+  vscode.postMessage({ type, ...data });
+}
+
+function handleCreate() {
+  document.getElementById('createTitle').value = '';
+  document.getElementById('createDesc').value = '';
+  const sel = document.getElementById('createStatus');
+  sel.innerHTML = COLUMNS.map(c => `<option value="${c}">${c}</option>`).join('');
+  document.getElementById('createModal').classList.add('active');
+}
+
+function closeCreateModal() {
+  document.getElementById('createModal').classList.remove('active');
+}
+
+function saveCreateModal() {
+  const title = document.getElementById('createTitle').value.trim();
+  const desc = document.getElementById('createDesc').value.trim();
+  const status = document.getElementById('createStatus').value;
+  if (!title) return;
+  post('createTicket', { title, description: desc, status });
+  closeCreateModal();
+}
+
+function handleRefresh() {
+  post('refresh', {});
+}
+
+function openEdit(id) {
+  const ticket = tickets.find(t => t.id === id);
+  if (!ticket) return;
+  editTicketId = id;
+  document.getElementById('modalTitle').textContent = 'Edit Ticket';
+  document.getElementById('modalTicketTitle').value = ticket.title;
+  document.getElementById('modalTicketDesc').value = ticket.description || '';
+  const sel = document.getElementById('modalTicketStatus');
+  sel.innerHTML = COLUMNS.map(c => `<option value="${c}" ${c === ticket.status ? 'selected' : ''}>${c}</option>`).join('');
+  document.getElementById('modalDeleteBtn').style.display = '';
+  document.getElementById('editModal').classList.add('active');
+}
+
+function closeModal() {
+  editTicketId = null;
+  document.getElementById('editModal').classList.remove('active');
+}
+
+function saveModal() {
+  if (!editTicketId) return;
+  const title = document.getElementById('modalTicketTitle').value.trim();
+  const desc = document.getElementById('modalTicketDesc').value.trim();
+  const status = document.getElementById('modalTicketStatus').value;
+  if (!title) return;
+  post('updateTicket', { id: editTicketId, title, description: desc, status });
+  closeModal();
+}
+
+function deleteTicket() {
+  if (!editTicketId) return;
+  post('deleteTicket', { id: editTicketId });
+  closeModal();
+}
+document.getElementById('modalDeleteBtn').addEventListener('click', deleteTicket);
+
+function handleDragStart(e, id) {
+  e.dataTransfer.setData('text/plain', id);
+  e.target.classList.add('dragging');
+}
+
+function handleDragEnd(e) {
+  e.target.classList.remove('dragging');
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+
+function handleDrop(e, status) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  const id = e.dataTransfer.getData('text/plain');
+  const ticket = tickets.find(t => t.id === id);
+  if (ticket) {
+    ticket.status = status;
+    if (status === 'In Progress') {
+      ticket.executionStatus = 'idle';
+    }
+    render();
+  }
+  post('updateTicket', { id, status });
+}
+
+function render() {
+  const board = document.getElementById('board');
+  const statsEl = document.getElementById('stats');
+  const total = tickets.length;
+  const running = tickets.filter(t => t.executionStatus === 'running').length;
+  const completed = tickets.filter(t => t.status === 'Done').length;
+  statsEl.textContent = `${total} ticket${total !== 1 ? 's' : ''} · ${completed} done · ${running} running`;
+
+  board.innerHTML = COLUMNS.map(status => {
+    const colTickets = tickets.filter(t => t.status === status);
+    let cardsHtml = '';
+    if (colTickets.length === 0) {
+      const icons = { 'To Do': '📋', 'In Progress': '🟡', 'In Review': '👁', 'Done': '✅' };
+      cardsHtml = `<div class="empty-state"><div class="icon">${icons[status] || '•'}</div>No tickets</div>`;
+    } else {
+      cardsHtml = colTickets.map(t => {
+        const isRunning = t.executionStatus === 'running';
+        const meta = t.executionStatus === 'running' ? 'Running...' : (t.executionStatus === 'completed' ? 'Completed' : '');
+        const completeBtn = t.status === 'In Progress' && isRunning
+          ? `<button class="primary" onclick="event.stopPropagation();completeTicket('${t.id}')" title="Move to In Review">Complete</button>`
+          : '';
+        return `
+          <div class="card ${isRunning ? 'running' : ''}" draggable="true"
+             ondragstart="handleDragStart(event, '${t.id}')"
+             ondragend="handleDragEnd(event)">
+            <div class="card-title">${esc(t.title)}</div>
+            <div class="card-desc">${esc(t.description || '')}</div>
+            ${meta ? `<div class="card-meta">${meta}</div>` : ''}
+            <div class="card-actions">
+              <button onclick="event.stopPropagation();openEdit('${t.id}')" title="Edit">Edit</button>
+              
+              ${completeBtn}
+            </div>
+          </div>`;
+      }).join('');
+    }
+    return `
+      <div class="column">
+        <div class="column-header">
+          <span>${status} <span class="count">${colTickets.length}</span></span>
+          <button class="add-btn" onclick="event.stopPropagation();openCreateIn('${status}')" title="Add ticket to ${status}">+</button>
+        </div>
+        <div class="column-body"
+           ondragover="handleDragOver(event)"
+           ondragleave="handleDragLeave(event)"
+           ondrop="handleDrop(event, '${status}')">
+          ${cardsHtml}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function esc(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+function completeTicket(id) {
+  const ticket = tickets.find(t => t.id === id);
+  if (ticket) {
+    ticket.status = 'In Review';
+    ticket.executionStatus = 'completed';
+    render();
+  }
+  post('moveToReview', { id });
+}
+
+function openCreateIn(status) {
+  document.getElementById('createTitle').value = '';
+  document.getElementById('createDesc').value = '';
+  const sel = document.getElementById('createStatus');
+  sel.innerHTML = COLUMNS.map(c => `<option value="${c}" ${c === status ? 'selected' : ''}>${c}</option>`).join('');
+  document.getElementById('createModal').classList.add('active');
+}
+
+post('ready', {});
+render();
+</script>
+</body>
+</html>

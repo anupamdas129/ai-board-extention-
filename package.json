@@ -1,0 +1,154 @@
+{
+  "name": "workboard",
+  "displayName": "Workboard - AI Kanban Board",
+  "description": "Local Kanban board with AI agent execution via LangChain/LangGraph",
+  "version": "0.2.0",
+  "publisher": "workboard",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onView:workboard.boardView",
+    "onCommand:workboard.openKanban"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "workboard-kanban",
+          "title": "Workboard",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "workboard-kanban": [
+        {
+          "id": "workboard.boardView",
+          "name": "Kanban Board"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "workboard.boardView",
+        "contents": "Kanban board opens in the editor area.\n\n[Open Kanban Board](command:workboard.openKanban)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "workboard.openKanban",
+        "title": "Workboard: Open Kanban Board",
+        "icon": "$(layout-sidebar-left)"
+      },
+      {
+        "command": "workboard.refreshBoard",
+        "title": "Workboard: Refresh Board"
+      }
+    ],
+    "configuration": {
+      "title": "Workboard",
+      "properties": {
+        "workboard.model.provider": {
+          "type": "string",
+          "enum": [
+            "openai",
+            "anthropic",
+            "google",
+            "groq"
+          ],
+          "default": "openai",
+          "description": "AI model provider for LangGraph agent execution"
+        },
+        "workboard.model.openai.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "OpenAI API key. Falls back to OPENAI_API_KEY env variable."
+        },
+        "workboard.model.anthropic.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Anthropic API key. Falls back to ANTHROPIC_API_KEY env variable."
+        },
+        "workboard.model.openai.modelName": {
+          "type": "string",
+          "default": "gpt-4o",
+          "description": "OpenAI model to use for agent execution"
+        },
+        "workboard.maxParallelExecutions": {
+          "type": "number",
+          "default": 3,
+          "description": "Maximum number of tickets that can execute in parallel"
+        },
+        "workboard.cliProviders": {
+          "type": "array",
+          "default": [
+            {
+              "id": "opencode",
+              "label": "OpenCode",
+              "command": "opencode"
+            },
+            {
+              "id": "codex",
+              "label": "OpenAI Codex CLI",
+              "command": "codex"
+            },
+            {
+              "id": "claude",
+              "label": "Claude Code",
+              "command": "claude"
+            }
+          ],
+          "description": "Registered AI CLI tools",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "command": {
+                "type": "string"
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./ && node -e \"require('fs').copyFileSync('src/kanbanView.html','dist/kanbanView.html')\"",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/sql.js": "^1.4.11",
+    "@types/uuid": "^9.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "@langchain/core": "^0.3.0",
+    "@langchain/langgraph": "^0.2.0",
+    "@langchain/openai": "^0.3.0",
+    "langchain": "^0.3.0",
+    "sql.js": "^1.11.0",
+    "uuid": "^9.0.0",
+    "zod": "^3.23.0"
+  }
+}
